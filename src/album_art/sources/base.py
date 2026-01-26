@@ -18,6 +18,10 @@ class TrackInfo:
     position_ms: int | None = None
     duration_ms: int | None = None
     timestamp: datetime = field(default_factory=datetime.now)
+    # For high-res art lookup
+    art_source: str = "sonos"  # "sonos", "spotify", or "itunes"
+    # For prefetching upcoming artwork
+    upcoming_art_urls: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
@@ -31,6 +35,8 @@ class TrackInfo:
             "position_ms": self.position_ms,
             "duration_ms": self.duration_ms,
             "timestamp": self.timestamp.isoformat(),
+            "art_source": self.art_source,
+            "upcoming_art_urls": self.upcoming_art_urls,
         }
 
 

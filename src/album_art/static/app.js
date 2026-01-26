@@ -26,6 +26,9 @@ class AlbumArtDisplay {
         this.modes = ['on', 'detailed', 'off'];
         this.currentModeIndex = 0;
 
+        // Track prefetched artwork URLs to avoid duplicate fetches
+        this.prefetchedUrls = new Set();
+
         this.init();
     }
 
@@ -45,10 +48,15 @@ class AlbumArtDisplay {
         });
 
         // Load saved mode from localStorage
+        // Only restore 'on' or 'detailed' - don't persist 'off' across sessions
         const savedMode = localStorage.getItem('displayMode');
-        if (savedMode && this.modes.includes(savedMode)) {
-            this.currentModeIndex = this.modes.indexOf(savedMode);
-            this.elements.app.dataset.mode = savedMode;
+        if (savedMode === 'detailed') {
+            this.currentModeIndex = 1;
+            this.elements.app.dataset.mode = 'detailed';
+        } else {
+            // Default to 'on' (metadata visible, no file info)
+            this.currentModeIndex = 0;
+            this.elements.app.dataset.mode = 'on';
         }
     }
 
@@ -110,6 +118,22 @@ class AlbumArtDisplay {
 
         this.currentTrack = track;
         this.updateDisplay(track);
+
+        // Prefetch upcoming artwork for smooth transitions
+        if (track.upcoming_art_urls && track.upcoming_art_urls.length > 0) {
+            this.prefetchArtwork(track.upcoming_art_urls);
+        }
+    }
+
+    prefetchArtwork(urls) {
+        urls.forEach(url => {
+            if (url && !this.prefetchedUrls.has(url)) {
+                const img = new Image();
+                img.src = url;
+                this.prefetchedUrls.add(url);
+                console.log('Prefetching artwork:', url.substring(0, 60) + '...');
+            }
+        });
     }
 
     updateDisplay(track) {
@@ -155,6 +179,11 @@ class AlbumArtDisplay {
         // Image dimensions
         if (width && height) {
             parts.push(`${width}×${height}`);
+        }
+
+        // Art source (sonos, itunes, spotify)
+        if (track.art_source) {
+            parts.push(track.art_source);
         }
 
         // Duration

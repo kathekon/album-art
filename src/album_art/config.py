@@ -51,6 +51,15 @@ class SpotifyConfig:
 
 
 @dataclass
+class ArtworkConfig:
+    """Album artwork settings."""
+
+    prefer_itunes: bool = True  # Try iTunes for higher-res art
+    itunes_size: int = 1200  # Requested size (100-3000), 1200 is good balance
+    prefetch_count: int = 5  # Number of upcoming tracks to prefetch
+
+
+@dataclass
 class Settings:
     """Application settings loaded from config.toml and environment."""
 
@@ -58,6 +67,7 @@ class Settings:
     polling: PollingConfig = field(default_factory=PollingConfig)
     sonos: SonosConfig = field(default_factory=SonosConfig)
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
+    artwork: ArtworkConfig = field(default_factory=ArtworkConfig)
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> Self:
@@ -85,6 +95,7 @@ class Settings:
                     "client_secret": os.getenv("SPOTIFY_CLIENT_SECRET", ""),
                 }
             ),
+            artwork=ArtworkConfig(**data.get("artwork", {})),
         )
 
 

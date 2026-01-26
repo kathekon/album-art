@@ -8,6 +8,7 @@ from soco import SoCo
 
 from ..config import get_settings
 from .base import MusicSource, TrackInfo
+from .itunes import get_itunes_artwork
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,8 @@ class SonosSource(MusicSource):
         if device is None:
             return None
 
+        settings = get_settings()
+
         # Run blocking SoCo calls in thread pool
         loop = asyncio.get_event_loop()
         try:
@@ -103,21 +106,60 @@ class SonosSource(MusicSource):
         if not title:
             return None
 
-        # Construct full album art URL
+        artist = track_info.get("artist", "") or "Unknown Artist"
+        album = track_info.get("album", "") or "Unknown Album"
+
+        # Construct full album art URL from Sonos
         album_art = track_info.get("album_art", "")
         if album_art and not album_art.startswith("http"):
             album_art = f"http://{device.ip_address}:1400{album_art}"
 
+        art_source = "sonos"
+
+        # Try to get higher-res art from iTunes
+        if settings.artwork.prefer_itunes:
+            itunes_art = await get_itunes_artwork(artist, album)
+            if itunes_art:
+                album_art = itunes_art
+                art_source = "itunes"
+                logger.debug(f"Using iTunes artwork for '{title}'")
+
+        # Get upcoming queue artwork for prefetching
+        upcoming_art_urls = await self._get_queue_art_urls(device, settings.artwork.prefetch_count)
+
         return TrackInfo(
             source=self.name,
             title=title,
-            artist=track_info.get("artist", "") or "Unknown Artist",
-            album=track_info.get("album", "") or "Unknown Album",
+            artist=artist,
+            album=album,
             album_art_url=album_art or None,
             is_playing=is_playing,
             position_ms=self._parse_time(track_info.get("position", "")),
             duration_ms=self._parse_time(track_info.get("duration", "")),
+            art_source=art_source,
+            upcoming_art_urls=upcoming_art_urls,
         )
+
+    async def _get_queue_art_urls(self, device: SoCo, count: int) -> list[str]:
+        """Get album art URLs for upcoming queue items."""
+        if count <= 0:
+            return []
+
+        loop = asyncio.get_event_loop()
+        try:
+            queue = await loop.run_in_executor(
+                None,
+                lambda: device.get_queue(max_items=count, full_album_art_uri=True),
+            )
+            urls = []
+            for item in queue:
+                art_uri = getattr(item, "album_art_uri", None)
+                if art_uri:
+                    urls.append(art_uri)
+            return urls
+        except Exception as e:
+            logger.debug(f"Could not fetch queue: {e}")
+            return []
 
     @staticmethod
     def _parse_time(time_str: str) -> int | None:
