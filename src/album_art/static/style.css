@@ -1,0 +1,137 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#album-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 90vmin;
+    max-height: 90vmin;
+}
+
+#album-art {
+    max-width: 100%;
+    max-height: 75vmin;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    transition: opacity 0.5s ease-in-out;
+}
+
+#album-art.loading {
+    opacity: 0.5;
+}
+
+#track-info {
+    margin-top: 24px;
+    text-align: center;
+    color: #fff;
+    max-width: 640px;
+    padding: 0 16px;
+}
+
+#track-info.hidden {
+    display: none;
+}
+
+#title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#artist {
+    font-size: 1.1rem;
+    color: #aaa;
+    margin-bottom: 4px;
+}
+
+#album {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+#status {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#status.hidden {
+    display: none;
+}
+
+#source-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+#source-badge.sonos {
+    background-color: #f0f0f0;
+    color: #000;
+}
+
+#source-badge.spotify {
+    background-color: #1db954;
+    color: #000;
+}
+
+#play-state {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+/* Nothing playing state */
+.nothing-playing #album-art {
+    filter: grayscale(50%) brightness(0.5);
+}
+
+.nothing-playing #track-info {
+    color: #666;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    #title {
+        font-size: 1.2rem;
+    }
+
+    #artist {
+        font-size: 1rem;
+    }
+
+    #album {
+        font-size: 0.8rem;
+    }
+}

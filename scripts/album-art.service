@@ -1,0 +1,15 @@
+[Unit]
+Description=Album Art Display Backend
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/album_art
+Environment="PATH=/home/pi/.local/bin:/usr/bin"
+ExecStart=/home/pi/.local/bin/uv run album-art
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

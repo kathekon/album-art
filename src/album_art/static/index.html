@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Album Art Display</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="album-container">
+            <img id="album-art" src="/static/default-album.svg" alt="Album Art">
+            <div id="track-info" class="hidden">
+                <div id="title"></div>
+                <div id="artist"></div>
+                <div id="album"></div>
+            </div>
+        </div>
+        <div id="status" class="hidden">
+            <span id="source-badge"></span>
+            <span id="play-state"></span>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

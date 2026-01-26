@@ -1,0 +1,17 @@
+[server]
+host = "0.0.0.0"
+port = 5174        # Unusual port to avoid conflicts
+debug = false
+
+[polling]
+interval = 3.0  # seconds between API checks
+
+[sonos]
+enabled = true
+ip = "10.0.1.227"   # Direct IP (auto-discovery was timing out)
+room = ""           # Optional: filter by room name
+
+[spotify]
+enabled = false   # Disabled - Spotify API new apps paused (Jan 2026)
+redirect_uri = "http://localhost:5174/callback"
+cache_path = ".spotify_cache"
