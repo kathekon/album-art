@@ -115,11 +115,11 @@ class AlbumArtDisplay {
         this.elements.album.textContent = track.album;
         this.elements.trackInfo.classList.remove('hidden');
 
-        // Update status
+        // Update status (now inside track-info)
         this.elements.sourceBadge.textContent = track.source;
         this.elements.sourceBadge.className = track.source;
         this.elements.playState.textContent = track.is_playing ? 'Playing' : 'Paused';
-        this.elements.status.classList.remove('hidden');
+        this.elements.status.style.display = 'flex';
     }
 
     showNothingPlaying() {
@@ -130,7 +130,7 @@ class AlbumArtDisplay {
         this.elements.artist.textContent = '';
         this.elements.album.textContent = '';
         this.elements.trackInfo.classList.remove('hidden');
-        this.elements.status.classList.add('hidden');
+        this.elements.status.style.display = 'none';
     }
 }
 
