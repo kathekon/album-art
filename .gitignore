@@ -37,3 +37,4 @@ build/
 
 # Claude
 .claude/
+test-results/
