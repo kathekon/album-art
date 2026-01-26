@@ -11,6 +11,7 @@ class AlbumArtDisplay {
             title: document.getElementById('title'),
             artist: document.getElementById('artist'),
             album: document.getElementById('album'),
+            fileInfo: document.getElementById('file-info'),
             status: document.getElementById('status'),
             sourceBadge: document.getElementById('source-badge'),
             playState: document.getElementById('play-state'),
@@ -20,6 +21,10 @@ class AlbumArtDisplay {
         this.eventSource = null;
         this.reconnectDelay = 1000;
         this.maxReconnectDelay = 30000;
+
+        // Display modes: on -> detailed -> off -> on...
+        this.modes = ['on', 'detailed', 'off'];
+        this.currentModeIndex = 0;
 
         this.init();
     }
@@ -33,6 +38,26 @@ class AlbumArtDisplay {
                 this.connect();
             }
         });
+
+        // Click anywhere to cycle display modes
+        document.addEventListener('click', () => {
+            this.cycleDisplayMode();
+        });
+
+        // Load saved mode from localStorage
+        const savedMode = localStorage.getItem('displayMode');
+        if (savedMode && this.modes.includes(savedMode)) {
+            this.currentModeIndex = this.modes.indexOf(savedMode);
+            this.elements.app.dataset.mode = savedMode;
+        }
+    }
+
+    cycleDisplayMode() {
+        this.currentModeIndex = (this.currentModeIndex + 1) % this.modes.length;
+        const newMode = this.modes[this.currentModeIndex];
+        this.elements.app.dataset.mode = newMode;
+        localStorage.setItem('displayMode', newMode);
+        console.log('Display mode:', newMode);
     }
 
     connect() {
@@ -47,7 +72,7 @@ class AlbumArtDisplay {
             const data = JSON.parse(event.data);
             console.log('Initial state:', data);
             this.handleUpdate(data.current_track);
-            this.reconnectDelay = 1000; // Reset on successful connection
+            this.reconnectDelay = 1000;
         });
 
         this.eventSource.addEventListener('update', (event) => {
@@ -57,7 +82,7 @@ class AlbumArtDisplay {
         });
 
         this.eventSource.addEventListener('ping', () => {
-            // Keepalive, do nothing
+            // Keepalive
         });
 
         this.eventSource.onerror = (err) => {
@@ -65,7 +90,6 @@ class AlbumArtDisplay {
             this.eventSource.close();
             this.eventSource = null;
 
-            // Exponential backoff reconnect
             console.log(`Reconnecting in ${this.reconnectDelay}ms...`);
             setTimeout(() => {
                 this.connect();
@@ -99,14 +123,18 @@ class AlbumArtDisplay {
             img.onload = () => {
                 this.elements.albumArt.src = track.album_art_url;
                 this.elements.albumArt.classList.remove('loading');
+                // Update file info with image dimensions
+                this.updateFileInfo(track, img.naturalWidth, img.naturalHeight);
             };
             img.onerror = () => {
                 this.elements.albumArt.src = '/static/default-album.svg';
                 this.elements.albumArt.classList.remove('loading');
+                this.elements.fileInfo.textContent = '';
             };
             img.src = track.album_art_url;
         } else if (!track.album_art_url) {
             this.elements.albumArt.src = '/static/default-album.svg';
+            this.elements.fileInfo.textContent = '';
         }
 
         // Update track info
@@ -115,11 +143,34 @@ class AlbumArtDisplay {
         this.elements.album.textContent = track.album;
         this.elements.trackInfo.classList.remove('hidden');
 
-        // Update status (now inside track-info)
+        // Update status
         this.elements.sourceBadge.textContent = track.source;
         this.elements.sourceBadge.className = track.source;
         this.elements.playState.textContent = track.is_playing ? 'Playing' : 'Paused';
-        this.elements.status.style.display = 'flex';
+    }
+
+    updateFileInfo(track, width, height) {
+        const parts = [];
+
+        // Image dimensions
+        if (width && height) {
+            parts.push(`${width}×${height}`);
+        }
+
+        // Duration
+        if (track.duration_ms) {
+            const mins = Math.floor(track.duration_ms / 60000);
+            const secs = Math.floor((track.duration_ms % 60000) / 1000);
+            parts.push(`${mins}:${secs.toString().padStart(2, '0')}`);
+        }
+
+        // Position
+        if (track.position_ms && track.duration_ms) {
+            const pct = Math.round((track.position_ms / track.duration_ms) * 100);
+            parts.push(`${pct}%`);
+        }
+
+        this.elements.fileInfo.textContent = parts.join(' · ');
     }
 
     showNothingPlaying() {
@@ -129,8 +180,8 @@ class AlbumArtDisplay {
         this.elements.title.textContent = 'Nothing Playing';
         this.elements.artist.textContent = '';
         this.elements.album.textContent = '';
+        this.elements.fileInfo.textContent = '';
         this.elements.trackInfo.classList.remove('hidden');
-        this.elements.status.style.display = 'none';
     }
 }
 

@@ -10,6 +10,8 @@ html, body {
     overflow: hidden;
     background-color: #000;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    user-select: none;
 }
 
 #app {
@@ -18,24 +20,23 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 #album-container {
     display: flex;
-    flex-direction: row;
     align-items: center;
     justify-content: center;
     width: 100%;
     height: 100%;
     padding: 24px;
-    gap: 32px;
 }
 
 #album-art {
-    /* Fill available height, maintain square aspect ratio */
+    /* Fill available space, maintain square aspect ratio */
     height: calc(100vh - 48px);
-    width: calc(100vh - 48px);  /* Square: same as height */
-    max-width: calc(100vw - 320px);  /* Leave room for track info */
+    width: calc(100vh - 48px);
+    max-width: calc(100vw - 48px);
     max-height: calc(100vh - 48px);
     object-fit: cover;
     border-radius: 8px;
@@ -47,68 +48,82 @@ html, body {
     opacity: 0.5;
 }
 
+/* Track info - fixed position bottom right, subtle styling */
 #track-info {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    color: #fff;
-    min-width: 200px;
-    max-width: 280px;
-    text-align: left;
+    position: fixed;
+    bottom: 24px;
+    right: 32px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.6);
+    max-width: 400px;
+    transition: opacity 0.3s ease;
 }
 
 #track-info.hidden {
-    display: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 #title {
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin-bottom: 12px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 6px;
     line-height: 1.3;
-    word-wrap: break-word;
+    color: rgba(255, 255, 255, 0.75);
 }
 
 #artist {
-    font-size: 1.1rem;
-    color: #aaa;
-    margin-bottom: 8px;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 4px;
 }
 
 #album {
-    font-size: 0.95rem;
-    color: #666;
-    margin-bottom: 24px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+#file-info {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.25);
+    margin-top: 8px;
+    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+}
+
+#file-info.hidden {
+    display: none;
 }
 
 #status {
     display: flex;
     gap: 8px;
     align-items: center;
-    margin-top: 16px;
+    justify-content: flex-end;
+    margin-top: 12px;
 }
 
 #source-badge {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
+    opacity: 0.7;
 }
 
 #source-badge.sonos {
-    background-color: #f0f0f0;
-    color: #000;
+    background-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.6);
 }
 
 #source-badge.spotify {
-    background-color: #1db954;
-    color: #000;
+    background-color: rgba(29, 185, 84, 0.3);
+    color: rgba(29, 185, 84, 0.8);
 }
 
 #play-state {
-    font-size: 0.8rem;
-    color: #666;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.3);
 }
 
 /* Nothing playing state */
@@ -117,24 +132,19 @@ html, body {
 }
 
 .nothing-playing #track-info {
-    color: #666;
+    color: rgba(255, 255, 255, 0.3);
 }
 
-/* Responsive: stack vertically on narrow screens */
-@media (max-width: 800px) {
-    #album-container {
-        flex-direction: column;
-        gap: 16px;
-    }
+/* Metadata display modes */
+#app[data-mode="off"] #track-info {
+    opacity: 0;
+    pointer-events: none;
+}
 
-    #album-art {
-        height: auto;
-        max-height: calc(100vh - 150px);
-        max-width: calc(100vw - 48px);
-    }
+#app[data-mode="on"] #file-info {
+    display: none;
+}
 
-    #track-info {
-        text-align: center;
-        max-width: 100%;
-    }
+#app[data-mode="detailed"] #file-info {
+    display: block;
 }
