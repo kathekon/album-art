@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# Development
+.git/
+.gitignore
+.ruff_cache/
+.pytest_cache/
+CLAUDE.md
+scripts/
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets and local config
+.env
+.spotify_cache
+
+# Pi backup
+pi_backup/

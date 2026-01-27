@@ -1,0 +1,9 @@
+services:
+  album-art:
+    build: .
+    ports:
+      - "5174:5174"
+    volumes:
+      # Mount config for easy updates without rebuild
+      - ./config.toml:/app/config.toml:ro
+    restart: unless-stopped
