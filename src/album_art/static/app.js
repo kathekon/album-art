@@ -25,6 +25,7 @@ class AlbumArtDisplay {
         // Display modes: on -> detailed -> off -> on...
         this.modes = ['on', 'detailed', 'off'];
         this.currentModeIndex = 0;
+        this.serverDefaultMode = 'on';  // Will be fetched from server
 
         // Track prefetched artwork URLs to avoid duplicate fetches
         this.prefetchedUrls = new Set();
@@ -32,7 +33,10 @@ class AlbumArtDisplay {
         this.init();
     }
 
-    init() {
+    async init() {
+        // Fetch server config for default display mode
+        await this.loadServerConfig();
+
         this.connect();
 
         // Handle visibility change to reconnect when tab becomes visible
@@ -47,17 +51,53 @@ class AlbumArtDisplay {
             this.cycleDisplayMode();
         });
 
-        // Load saved mode from localStorage
-        // Only restore 'on' or 'detailed' - don't persist 'off' across sessions
-        const savedMode = localStorage.getItem('displayMode');
-        if (savedMode === 'detailed') {
-            this.currentModeIndex = 1;
-            this.elements.app.dataset.mode = 'detailed';
-        } else {
-            // Default to 'on' (metadata visible, no file info)
-            this.currentModeIndex = 0;
-            this.elements.app.dataset.mode = 'on';
+        // Apply display mode: user preference overrides server default
+        this.applyInitialMode();
+    }
+
+    async loadServerConfig() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+            if (config.display && config.display.default_mode) {
+                this.serverDefaultMode = config.display.default_mode;
+                console.log('Server default mode:', this.serverDefaultMode);
+            }
+        } catch (err) {
+            console.warn('Could not fetch server config, using defaults:', err);
         }
+    }
+
+    applyInitialMode() {
+        // Priority: URL param > localStorage > server default
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlMode = urlParams.get('mode');
+        const savedMode = localStorage.getItem('displayMode');
+
+        let mode;
+        let source;
+        if (urlMode && this.modes.includes(urlMode)) {
+            // URL parameter takes highest priority (for kiosk setups)
+            mode = urlMode;
+            source = 'URL parameter';
+        } else if (savedMode && this.modes.includes(savedMode)) {
+            // User has a saved preference
+            mode = savedMode;
+            source = 'user preference';
+        } else {
+            // Fall back to server default
+            mode = this.serverDefaultMode;
+            source = 'server default';
+        }
+
+        this.currentModeIndex = this.modes.indexOf(mode);
+        if (this.currentModeIndex === -1) {
+            this.currentModeIndex = 0;
+            mode = 'on';
+        }
+
+        this.elements.app.dataset.mode = mode;
+        console.log('Display mode:', mode, `(${source})`);
     }
 
     cycleDisplayMode() {
@@ -175,6 +215,11 @@ class AlbumArtDisplay {
 
     updateFileInfo(track, width, height) {
         const parts = [];
+
+        // Room name (for multi-room Sonos setups)
+        if (track.room_name) {
+            parts.push(track.room_name);
+        }
 
         // Image dimensions
         if (width && height) {

@@ -22,6 +22,8 @@ class TrackInfo:
     art_source: str = "sonos"  # "sonos", "spotify", or "itunes"
     # For prefetching upcoming artwork
     upcoming_art_urls: list[str] = field(default_factory=list)
+    # Room/zone name (for multi-room setups)
+    room_name: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
@@ -37,6 +39,7 @@ class TrackInfo:
             "timestamp": self.timestamp.isoformat(),
             "art_source": self.art_source,
             "upcoming_art_urls": self.upcoming_art_urls,
+            "room_name": self.room_name,
         }
 
 

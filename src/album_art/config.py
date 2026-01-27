@@ -60,6 +60,13 @@ class ArtworkConfig:
 
 
 @dataclass
+class DisplayConfig:
+    """Display/UI settings."""
+
+    default_mode: str = "on"  # on, detailed, or off
+
+
+@dataclass
 class Settings:
     """Application settings loaded from config.toml and environment."""
 
@@ -68,6 +75,7 @@ class Settings:
     sonos: SonosConfig = field(default_factory=SonosConfig)
     spotify: SpotifyConfig = field(default_factory=SpotifyConfig)
     artwork: ArtworkConfig = field(default_factory=ArtworkConfig)
+    display: DisplayConfig = field(default_factory=DisplayConfig)
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> Self:
@@ -96,6 +104,7 @@ class Settings:
                 }
             ),
             artwork=ArtworkConfig(**data.get("artwork", {})),
+            display=DisplayConfig(**data.get("display", {})),
         )
 
 
@@ -109,3 +118,9 @@ def get_settings() -> Settings:
     if _settings is None:
         _settings = Settings.load()
     return _settings
+
+
+def set_settings(settings: Settings) -> None:
+    """Set the global settings instance (for CLI overrides)."""
+    global _settings
+    _settings = settings

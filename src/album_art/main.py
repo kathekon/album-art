@@ -76,6 +76,18 @@ async def get_sources():
     }
 
 
+@app.get("/api/config")
+async def get_config():
+    """Get client-side configuration."""
+    # Use get_settings() to pick up CLI overrides (not module-level settings)
+    current_settings = get_settings()
+    return {
+        "display": {
+            "default_mode": current_settings.display.default_mode,
+        }
+    }
+
+
 @app.get("/api/stream")
 async def stream(request: Request):
     """SSE endpoint for real-time playback updates."""
@@ -123,9 +135,35 @@ async def stream(request: Request):
 
 def run():
     """Run the application with uvicorn."""
+    import argparse
+
     import uvicorn
 
-    settings = get_settings()
+    from .config import Settings, set_settings
+
+    parser = argparse.ArgumentParser(description="Album Art Display")
+    parser.add_argument(
+        "--default-mode",
+        choices=["on", "detailed", "off"],
+        help="Default display mode for metadata (on, detailed, off)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        help="Port to run on (overrides config.toml)",
+    )
+    args = parser.parse_args()
+
+    # Load settings and apply CLI overrides
+    settings = Settings.load()
+    if args.default_mode:
+        settings.display.default_mode = args.default_mode
+    if args.port:
+        settings.server.port = args.port
+
+    # Store settings so they're available to the app
+    set_settings(settings)
+
     uvicorn.run(
         "album_art.main:app",
         host=settings.server.host,

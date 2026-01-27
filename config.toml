@@ -20,3 +20,6 @@ cache_path = ".spotify_cache"
 prefer_itunes = true   # Try iTunes for higher-res album art
 itunes_size = 1200     # Requested size (100-3000), 1200 is good balance
 prefetch_count = 5     # Number of upcoming tracks to prefetch artwork for
+
+[display]
+default_mode = "on"    # on, detailed, or off (can override with --default-mode)

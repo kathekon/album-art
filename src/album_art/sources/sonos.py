@@ -18,6 +18,7 @@ class SonosSource(MusicSource):
 
     def __init__(self):
         self._device: SoCo | None = None
+        self._room_name: str | None = None
         self._discovery_attempted = False
 
     @property
@@ -45,13 +46,20 @@ class SonosSource(MusicSource):
         # Try specific IP first
         if settings.sonos.ip:
             try:
-                self._device = SoCo(settings.sonos.ip)
-                # Verify it's reachable
-                _ = self._device.player_name
-                logger.info(f"Connected to Sonos at {settings.sonos.ip}")
+                device = SoCo(settings.sonos.ip)
+                # Verify it's actually a Sonos device by checking required attributes
+                # This will fail if the IP points to a non-Sonos device
+                player_name = device.player_name
+                # Additional validation: check for Sonos-specific attributes
+                _ = device.uid  # Unique ID - only Sonos devices have this
+                self._device = device
+                self._room_name = player_name
+                logger.info(f"Connected to Sonos '{player_name}' at {settings.sonos.ip}")
                 return self._device
             except Exception as e:
-                logger.warning(f"Could not connect to Sonos at {settings.sonos.ip}: {e}")
+                logger.warning(
+                    f"Device at {settings.sonos.ip} is not a valid Sonos speaker: {e}"
+                )
 
         # Auto-discover
         try:
@@ -66,12 +74,14 @@ class SonosSource(MusicSource):
                 for device in devices:
                     if device.player_name.lower() == settings.sonos.room.lower():
                         self._device = device
+                        self._room_name = device.player_name
                         logger.info(f"Connected to Sonos: {device.player_name}")
                         return self._device
                 logger.warning(f"Room '{settings.sonos.room}' not found")
 
             # Use first device found
             self._device = devices[0]
+            self._room_name = self._device.player_name
             logger.info(f"Connected to Sonos: {self._device.player_name}")
             return self._device
         except Exception as e:
@@ -95,6 +105,7 @@ class SonosSource(MusicSource):
             logger.error(f"Error getting Sonos track info: {e}")
             # Reset device to retry discovery next time
             self._device = None
+            self._room_name = None
             self._discovery_attempted = False
             return None
 
@@ -138,6 +149,7 @@ class SonosSource(MusicSource):
             duration_ms=self._parse_time(track_info.get("duration", "")),
             art_source=art_source,
             upcoming_art_urls=upcoming_art_urls,
+            room_name=self._room_name,
         )
 
     async def _get_queue_art_urls(self, device: SoCo, count: int) -> list[str]:
