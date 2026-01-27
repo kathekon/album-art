@@ -118,7 +118,7 @@ EOF
 @xset s off
 @xset -dpms
 @xset s noblank
-@$HOME/.local/bin/chromium-kiosk-launch.sh $FULL_URL $CHROMIUM_FLAGS
+@$CHROMIUM_CLEANUP_SCRIPT $FULL_URL $CHROMIUM_FLAGS
 EOF
 fi
 
