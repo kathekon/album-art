@@ -38,3 +38,9 @@ build/
 # Claude
 .claude/
 test-results/
+
+# macOS app bundles
+*.app/
+
+# Local binaries
+album-art
