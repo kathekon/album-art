@@ -20,6 +20,11 @@ class PlaybackState:
         default_factory=list, repr=False
     )
 
+    # Grace period for transient disconnects - don't flash "Nothing Playing"
+    # on brief network hiccups. Only clear track after consecutive None results.
+    _consecutive_none_count: int = field(default=0, repr=False)
+    _none_threshold: int = field(default=2, repr=False)  # ~6s at 3s polling interval
+
     def subscribe(self, callback: Callable[[TrackInfo | None], Awaitable[None]]):
         """Subscribe to state changes."""
         self._subscribers.append(callback)
@@ -31,6 +36,17 @@ class PlaybackState:
 
     async def update(self, track: TrackInfo | None):
         """Update the current track and notify subscribers."""
+        # Grace period: don't immediately clear track on transient None
+        # This prevents jarring "Nothing Playing" flash on brief network hiccups
+        if track is None and self.current_track is not None:
+            self._consecutive_none_count += 1
+            if self._consecutive_none_count < self._none_threshold:
+                # Still in grace period - keep current track, don't notify
+                return
+        else:
+            # Got a valid track (or already showing nothing) - reset counter
+            self._consecutive_none_count = 0
+
         # Check if track actually changed
         if self._tracks_equal(self.current_track, track):
             return

@@ -174,7 +174,10 @@ class TestPlaybackState:
 
     @pytest.mark.asyncio
     async def test_update_with_none(self):
-        """Test update from track to None (nothing playing)."""
+        """Test update from track to None (nothing playing).
+
+        With grace period, requires 2 consecutive None updates to clear track.
+        """
         state = PlaybackState()
         received_tracks = []
 
@@ -184,7 +187,8 @@ class TestPlaybackState:
         state.subscribe(callback)
 
         await state.update(make_track())
-        await state.update(None)
+        await state.update(None)  # First None - grace period, no notification
+        await state.update(None)  # Second None - clears track
 
         assert len(received_tracks) == 2
         assert received_tracks[0] is not None
@@ -246,6 +250,102 @@ class TestPlaybackState:
 
         result = state.to_dict()
         assert result["current_track"] is None
+
+
+class TestGracePeriod:
+    """Test grace period for transient disconnects."""
+
+    @pytest.mark.asyncio
+    async def test_single_none_keeps_track(self):
+        """Test that single None doesn't clear track immediately."""
+        state = PlaybackState()
+        state.current_track = make_track()
+        received = []
+
+        async def callback(track):
+            received.append(track)
+
+        state.subscribe(callback)
+
+        await state.update(None)  # First None
+
+        # Track should still be there (grace period)
+        assert state.current_track is not None
+        # No notification sent
+        assert len(received) == 0
+
+    @pytest.mark.asyncio
+    async def test_consecutive_none_clears_track(self):
+        """Test that consecutive Nones clear track after threshold."""
+        state = PlaybackState()
+        state.current_track = make_track()
+        received = []
+
+        async def callback(track):
+            received.append(track)
+
+        state.subscribe(callback)
+
+        await state.update(None)  # First None - grace period
+        assert state.current_track is not None
+
+        await state.update(None)  # Second None - clears
+        assert state.current_track is None
+        assert len(received) == 1
+        assert received[0] is None
+
+    @pytest.mark.asyncio
+    async def test_valid_track_resets_grace_counter(self):
+        """Test that receiving a valid track resets the None counter."""
+        state = PlaybackState()
+        state.current_track = make_track(title="Original")
+
+        await state.update(None)  # First None
+        assert state._consecutive_none_count == 1
+
+        await state.update(make_track(title="New Track"))  # Valid track
+        assert state._consecutive_none_count == 0
+
+        # Now need 2 more Nones to clear
+        await state.update(None)
+        assert state.current_track is not None
+
+    @pytest.mark.asyncio
+    async def test_grace_period_no_notification_during_grace(self):
+        """Test no notifications sent during grace period."""
+        state = PlaybackState()
+        state.current_track = make_track()
+        notifications = []
+
+        async def callback(track):
+            notifications.append(track)
+
+        state.subscribe(callback)
+
+        # First None - in grace period
+        await state.update(None)
+        assert len(notifications) == 0  # No notification
+
+    @pytest.mark.asyncio
+    async def test_starting_with_none_no_grace_needed(self):
+        """Test that if current_track is already None, no grace period needed."""
+        state = PlaybackState()
+        # Start with no track
+        assert state.current_track is None
+        received = []
+
+        async def callback(track):
+            received.append(track)
+
+        state.subscribe(callback)
+
+        # Update with None when already None - should be treated as no change
+        await state.update(None)
+        assert len(received) == 0  # No notification (tracks_equal)
+
+        # Now set a track
+        await state.update(make_track())
+        assert len(received) == 1
 
 
 class TestSSEStream:

@@ -258,9 +258,8 @@ class TestiTunesResponseParsing:
     async def test_malformed_results_missing_artist(self, mock_settings):
         """Test behavior when result is missing artistName.
 
-        Note: The current implementation matches when artistName is empty
-        because '' in 'test artist' returns True. This test documents
-        that behavior - a production fix would add explicit empty check.
+        Results with empty/missing artistName should be skipped to avoid
+        incorrect matches (empty string would match any search query).
         """
         with patch.object(itunes, "_artwork_cache", {}):
             mock_response = MagicMock()
@@ -268,7 +267,7 @@ class TestiTunesResponseParsing:
             mock_response.json.return_value = {
                 "results": [
                     {
-                        # Missing "artistName" - will default to empty string
+                        # Missing "artistName" - should be skipped
                         "artworkUrl100": "http://example.com/100x100bb.jpg"
                     }
                 ]
@@ -279,10 +278,8 @@ class TestiTunesResponseParsing:
 
             with patch("album_art.sources.itunes._get_client", return_value=mock_client):
                 result = await get_itunes_artwork("Test Artist", "Test Album")
-                # Current behavior: empty artist string matches ('' in 'test artist' = True)
-                # This documents current behavior; may want to add explicit empty check
-                assert result is not None
-                assert "1200x1200bb" in result
+                # Empty artist should be rejected - would incorrectly match anything
+                assert result is None
 
     @pytest.mark.asyncio
     async def test_malformed_results_missing_artwork(self, mock_settings):
@@ -329,6 +326,9 @@ class TestiTunesArtistMatching:
     @pytest.mark.asyncio
     async def test_exact_artist_match(self, mock_settings):
         """Test successful match with exact artist name."""
+        # Reset rate limit state
+        itunes._rate_limit_until = 0
+
         with patch.object(itunes, "_artwork_cache", {}):
             mock_response = MagicMock()
             mock_response.raise_for_status.return_value = None
@@ -352,6 +352,7 @@ class TestiTunesArtistMatching:
     @pytest.mark.asyncio
     async def test_artist_case_insensitive_match(self, mock_settings):
         """Test case-insensitive artist matching."""
+        itunes._rate_limit_until = 0
         with patch.object(itunes, "_artwork_cache", {}):
             mock_response = MagicMock()
             mock_response.raise_for_status.return_value = None
@@ -374,6 +375,7 @@ class TestiTunesArtistMatching:
     @pytest.mark.asyncio
     async def test_artist_partial_match(self, mock_settings):
         """Test partial artist matching (e.g., 'The Beatles' vs 'Beatles')."""
+        itunes._rate_limit_until = 0
         with patch.object(itunes, "_artwork_cache", {}):
             mock_response = MagicMock()
             mock_response.raise_for_status.return_value = None
@@ -473,6 +475,72 @@ class TestiTunesFeatureDisabled:
             result = await get_itunes_artwork("Test Artist", "Test Album")
             assert result is None
             mock_client.get.assert_not_called()
+
+
+class TestiTunesRateLimiting:
+    """Test iTunes rate limit handling."""
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_triggers_backoff(self, mock_settings):
+        """Test HTTP 429 triggers backoff that skips subsequent lookups."""
+        with patch.object(itunes, "_artwork_cache", {}):
+            with patch.object(itunes, "_rate_limit_until", 0):
+                mock_response = MagicMock()
+                mock_response.status_code = 429
+                mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                    "429 Too Many Requests",
+                    request=MagicMock(),
+                    response=mock_response,
+                )
+
+                mock_client = AsyncMock(spec=httpx.AsyncClient)
+                mock_client.get.return_value = mock_response
+
+                with patch("album_art.sources.itunes._get_client", return_value=mock_client):
+                    # First call triggers rate limit
+                    result1 = await get_itunes_artwork("Artist1", "Album1")
+                    assert result1 is None
+
+                    # Rate limit should now be set
+                    assert itunes._rate_limit_until > 0
+
+    @pytest.mark.asyncio
+    async def test_backoff_skips_lookup(self, mock_settings):
+        """Test that during backoff, lookups are skipped without making requests."""
+        import time
+
+        with patch.object(itunes, "_artwork_cache", {}):
+            # Set rate limit to future time
+            future_time = time.time() + 60
+            with patch.object(itunes, "_rate_limit_until", future_time):
+                mock_client = AsyncMock(spec=httpx.AsyncClient)
+
+                with patch("album_art.sources.itunes._get_client", return_value=mock_client):
+                    result = await get_itunes_artwork("Test Artist", "Test Album")
+                    assert result is None
+                    # Should not have made any HTTP request
+                    mock_client.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_backoff_expires(self, mock_settings):
+        """Test that after backoff expires, lookups resume."""
+        import time
+
+        with patch.object(itunes, "_artwork_cache", {}):
+            # Set rate limit to past time (expired)
+            past_time = time.time() - 1
+            with patch.object(itunes, "_rate_limit_until", past_time):
+                mock_response = MagicMock()
+                mock_response.raise_for_status.return_value = None
+                mock_response.json.return_value = {"results": []}
+
+                mock_client = AsyncMock(spec=httpx.AsyncClient)
+                mock_client.get.return_value = mock_response
+
+                with patch("album_art.sources.itunes._get_client", return_value=mock_client):
+                    result = await get_itunes_artwork("Test Artist", "Test Album")
+                    # Should have made the request (backoff expired)
+                    mock_client.get.assert_called_once()
 
 
 class TestAlbumNameCleaning:
