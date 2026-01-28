@@ -20,10 +20,18 @@ class TrackInfo:
     timestamp: datetime = field(default_factory=datetime.now)
     # For high-res art lookup
     art_source: str = "sonos"  # "sonos", "spotify", or "itunes"
+    # Why this art source was chosen (e.g., "matched", "no match", "rate limited")
+    art_source_reason: str = ""
     # For prefetching upcoming artwork
     upcoming_art_urls: list[str] = field(default_factory=list)
     # Room/zone name (for multi-room setups)
     room_name: str | None = None
+    # For comparison mode: original Sonos URL when iTunes is used
+    original_sonos_art_url: str | None = None
+    # Enhanced queue items with both Sonos and iTunes URLs (for debug mode)
+    upcoming_queue_items: list[dict] = field(default_factory=list)
+    # Whether queue has items
+    queue_in_use: bool = False
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dict."""
@@ -38,8 +46,12 @@ class TrackInfo:
             "duration_ms": self.duration_ms,
             "timestamp": self.timestamp.isoformat(),
             "art_source": self.art_source,
+            "art_source_reason": self.art_source_reason,
             "upcoming_art_urls": self.upcoming_art_urls,
             "room_name": self.room_name,
+            "original_sonos_art_url": self.original_sonos_art_url,
+            "upcoming_queue_items": self.upcoming_queue_items,
+            "queue_in_use": self.queue_in_use,
         }
 
 

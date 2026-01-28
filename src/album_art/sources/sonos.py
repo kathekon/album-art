@@ -126,17 +126,27 @@ class SonosSource(MusicSource):
             album_art = f"http://{device.ip_address}:1400{album_art}"
 
         art_source = "sonos"
+        art_source_reason = ""
+        original_sonos_url = album_art  # Save for comparison mode
 
         # Try to get higher-res art from iTunes
         if settings.artwork.prefer_itunes:
-            itunes_art = await get_itunes_artwork(artist, album)
+            itunes_art, reason = await get_itunes_artwork(artist, album)
+            art_source_reason = reason
             if itunes_art:
                 album_art = itunes_art
                 art_source = "itunes"
-                logger.debug(f"Using iTunes artwork for '{title}'")
+                logger.debug(f"Using iTunes artwork for '{title}' ({reason})")
+        else:
+            art_source_reason = "disabled"
 
-        # Get upcoming queue artwork for prefetching
-        upcoming_art_urls = await self._get_queue_art_urls(device, settings.artwork.prefetch_count)
+        # Get enhanced queue items with iTunes lookups for debug/comparison modes
+        enhanced_queue_items = await self._get_enhanced_queue_items(
+            device, settings.artwork.prefetch_count, settings.artwork.prefer_itunes
+        )
+
+        # Extract display URLs for backward-compatible prefetching
+        upcoming_art_urls = [item["display_url"] for item in enhanced_queue_items]
 
         return TrackInfo(
             source=self.name,
@@ -148,12 +158,27 @@ class SonosSource(MusicSource):
             position_ms=self._parse_time(track_info.get("position", "")),
             duration_ms=self._parse_time(track_info.get("duration", "")),
             art_source=art_source,
+            art_source_reason=art_source_reason,
             upcoming_art_urls=upcoming_art_urls,
             room_name=self._room_name,
+            original_sonos_art_url=original_sonos_url if art_source == "itunes" else None,
+            upcoming_queue_items=enhanced_queue_items,
+            queue_in_use=len(enhanced_queue_items) > 0,
         )
 
-    async def _get_queue_art_urls(self, device: SoCo, count: int) -> list[str]:
-        """Get album art URLs for upcoming queue items."""
+    async def _get_enhanced_queue_items(
+        self, device: SoCo, count: int, prefer_itunes: bool
+    ) -> list[dict]:
+        """Get queue items with both Sonos and iTunes URLs for debug/comparison modes.
+
+        Returns list of dicts with:
+        - sonos_url: Original Sonos artwork URL
+        - itunes_url: iTunes high-res URL (if found)
+        - title, artist, album: Track metadata
+        - has_itunes_match: Whether iTunes art was found
+        - display_url: The URL to actually display (iTunes if available, else Sonos)
+        - reason: Why iTunes was/wasn't used (e.g., "matched", "no match", "rate limited")
+        """
         if count <= 0:
             return []
 
@@ -163,15 +188,42 @@ class SonosSource(MusicSource):
                 None,
                 lambda: device.get_queue(max_items=count, full_album_art_uri=True),
             )
-            urls = []
-            for item in queue:
-                art_uri = getattr(item, "album_art_uri", None)
-                if art_uri:
-                    urls.append(art_uri)
-            return urls
         except Exception as e:
             logger.debug(f"Could not fetch queue: {e}")
             return []
+
+        # Build list of queue items with metadata
+        items = []
+        for item in queue:
+            sonos_url = getattr(item, "album_art_uri", None) or ""
+            items.append({
+                "sonos_url": sonos_url,
+                "itunes_url": None,
+                "title": getattr(item, "title", "") or "",
+                "artist": getattr(item, "creator", "") or "",
+                "album": getattr(item, "album", "") or "",
+                "has_itunes_match": False,
+                "display_url": sonos_url,
+                "reason": "disabled" if not prefer_itunes else "",
+            })
+
+        # Do iTunes lookups in parallel if enabled
+        if prefer_itunes and items:
+            async def lookup_itunes(item: dict) -> None:
+                """Look up iTunes art for a single queue item."""
+                if item["artist"] and item["album"]:
+                    itunes_url, reason = await get_itunes_artwork(item["artist"], item["album"])
+                    item["reason"] = reason
+                    if itunes_url:
+                        item["itunes_url"] = itunes_url
+                        item["has_itunes_match"] = True
+                        item["display_url"] = itunes_url
+                else:
+                    item["reason"] = "no metadata"
+
+            await asyncio.gather(*[lookup_itunes(item) for item in items])
+
+        return items
 
     @staticmethod
     def _parse_time(time_str: str) -> int | None:

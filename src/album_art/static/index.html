@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Album Art Display</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 <body>
     <div id="app" data-mode="on">
@@ -16,12 +16,27 @@
             <div id="artist"></div>
             <div id="album"></div>
             <div id="file-info"></div>
+            <div id="detailed-indicators" class="hidden">
+                <span id="queue-indicator"></span>
+                <span id="cache-indicator"></span>
+            </div>
             <div id="status">
                 <span id="source-badge"></span>
                 <span id="play-state"></span>
             </div>
         </div>
+
+        <!-- Comparison mode: Original Sonos thumbnail (above metadata) -->
+        <div id="comparison-thumbnail" class="hidden">
+            <img id="sonos-art-thumb" src="" alt="Sonos Original">
+            <span class="source-label">Sonos Original</span>
+        </div>
+
+        <!-- Debug mode: Queue thumbnail stack (left side) -->
+        <div id="queue-debug" class="hidden">
+            <div id="queue-thumbnails"></div>
+        </div>
     </div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 </html>

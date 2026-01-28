@@ -15,6 +15,14 @@ class AlbumArtDisplay {
             status: document.getElementById('status'),
             sourceBadge: document.getElementById('source-badge'),
             playState: document.getElementById('play-state'),
+            // New elements for enhanced modes
+            comparisonThumbnail: document.getElementById('comparison-thumbnail'),
+            sonosArtThumb: document.getElementById('sonos-art-thumb'),
+            queueDebug: document.getElementById('queue-debug'),
+            queueThumbnails: document.getElementById('queue-thumbnails'),
+            detailedIndicators: document.getElementById('detailed-indicators'),
+            queueIndicator: document.getElementById('queue-indicator'),
+            cacheIndicator: document.getElementById('cache-indicator'),
         };
 
         this.currentTrack = null;
@@ -22,8 +30,8 @@ class AlbumArtDisplay {
         this.reconnectDelay = 1000;
         this.maxReconnectDelay = 30000;
 
-        // Display modes: on -> detailed -> off -> on...
-        this.modes = ['on', 'detailed', 'off'];
+        // Display modes: on -> detailed -> comparison -> debug -> off -> on...
+        this.modes = ['on', 'detailed', 'comparison', 'debug', 'off'];
         this.currentModeIndex = 0;
         this.serverDefaultMode = 'on';  // Will be fetched from server
 
@@ -97,15 +105,65 @@ class AlbumArtDisplay {
         }
 
         this.elements.app.dataset.mode = mode;
+        this.updateModeVisibility(mode);
         console.log('Display mode:', mode, `(${source})`);
     }
 
     cycleDisplayMode() {
-        this.currentModeIndex = (this.currentModeIndex + 1) % this.modes.length;
-        const newMode = this.modes[this.currentModeIndex];
+        let attempts = 0;
+        let nextIndex = this.currentModeIndex;
+
+        // Find next valid mode, skipping unavailable ones
+        do {
+            nextIndex = (nextIndex + 1) % this.modes.length;
+            const mode = this.modes[nextIndex];
+
+            // Skip comparison if not using iTunes (nothing to compare)
+            if (mode === 'comparison' && !this.hasComparisonData()) continue;
+
+            // Skip debug if no queue data
+            if (mode === 'debug' && !this.hasQueueData()) continue;
+
+            break;
+        } while (++attempts < this.modes.length);
+
+        this.currentModeIndex = nextIndex;
+        const newMode = this.modes[nextIndex];
         this.elements.app.dataset.mode = newMode;
+        this.updateModeVisibility(newMode);
         localStorage.setItem('displayMode', newMode);
         console.log('Display mode:', newMode);
+    }
+
+    hasComparisonData() {
+        return this.currentTrack && this.currentTrack.original_sonos_art_url != null;
+    }
+
+    hasQueueData() {
+        return this.currentTrack && this.currentTrack.upcoming_queue_items && this.currentTrack.upcoming_queue_items.length > 0;
+    }
+
+    updateModeVisibility(mode) {
+        var comparisonThumbnail = this.elements.comparisonThumbnail;
+        var queueDebug = this.elements.queueDebug;
+        var detailedIndicators = this.elements.detailedIndicators;
+
+        // Hide all optional elements
+        if (comparisonThumbnail) comparisonThumbnail.classList.add('hidden');
+        if (queueDebug) queueDebug.classList.add('hidden');
+        if (detailedIndicators) detailedIndicators.classList.add('hidden');
+
+        // Show based on mode
+        if (mode === 'comparison' && this.hasComparisonData()) {
+            if (comparisonThumbnail) comparisonThumbnail.classList.remove('hidden');
+        }
+        if (mode === 'debug') {
+            if (queueDebug) queueDebug.classList.remove('hidden');
+            if (detailedIndicators) detailedIndicators.classList.remove('hidden');
+        }
+        if (mode === 'detailed') {
+            if (detailedIndicators) detailedIndicators.classList.remove('hidden');
+        }
     }
 
     connect() {
@@ -211,6 +269,12 @@ class AlbumArtDisplay {
         this.elements.sourceBadge.textContent = track.source;
         this.elements.sourceBadge.className = track.source;
         this.elements.playState.textContent = track.is_playing ? 'Playing' : 'Paused';
+
+        // Update mode-specific elements
+        this.updateComparisonThumbnail(track);
+        this.updateQueueDebug(track);
+        this.updateDetailedIndicators(track);
+        this.updateModeVisibility(this.modes[this.currentModeIndex]);
     }
 
     updateFileInfo(track, width, height) {
@@ -226,9 +290,13 @@ class AlbumArtDisplay {
             parts.push(`${width}×${height}`);
         }
 
-        // Art source (sonos, itunes, spotify)
+        // Art source with reason (sonos, itunes, spotify)
         if (track.art_source) {
-            parts.push(track.art_source);
+            let sourceInfo = track.art_source;
+            if (track.art_source_reason) {
+                sourceInfo += ` (${track.art_source_reason})`;
+            }
+            parts.push(sourceInfo);
         }
 
         // Duration
@@ -245,6 +313,56 @@ class AlbumArtDisplay {
         }
 
         this.elements.fileInfo.textContent = parts.join(' · ');
+    }
+
+    updateComparisonThumbnail(track) {
+        if (track.original_sonos_art_url && this.elements.sonosArtThumb) {
+            this.elements.sonosArtThumb.src = track.original_sonos_art_url;
+        }
+    }
+
+    updateQueueDebug(track) {
+        const container = this.elements.queueThumbnails;
+        if (!container) return;
+
+        container.innerHTML = '';
+        const items = track.upcoming_queue_items || [];
+
+        items.slice(0, 5).forEach(item => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'queue-thumbnail-wrapper';
+
+            const img = document.createElement('img');
+            img.className = `queue-thumbnail ${item.has_itunes_match ? 'has-itunes' : 'no-itunes'}`;
+            img.src = item.display_url;
+            img.alt = item.title || 'Queue item';
+
+            const badge = document.createElement('span');
+            badge.className = `queue-source-badge ${item.has_itunes_match ? 'itunes' : 'sonos'}`;
+            badge.textContent = item.has_itunes_match ? 'iTunes' : 'Sonos';
+
+            // Reason text below thumbnail
+            const reasonText = document.createElement('div');
+            reasonText.className = 'queue-reason';
+            reasonText.textContent = item.reason || '';
+
+            wrapper.appendChild(img);
+            wrapper.appendChild(badge);
+            wrapper.appendChild(reasonText);
+            container.appendChild(wrapper);
+        });
+    }
+
+    updateDetailedIndicators(track) {
+        var queueCount = (track.upcoming_queue_items && track.upcoming_queue_items.length) || 0;
+        var cacheCount = (this.prefetchedUrls && this.prefetchedUrls.size) || 0;
+
+        if (this.elements.queueIndicator) {
+            this.elements.queueIndicator.textContent = queueCount > 0 ? 'Q: ' + queueCount : '';
+        }
+        if (this.elements.cacheIndicator) {
+            this.elements.cacheIndicator.textContent = cacheCount > 0 ? 'Cached: ' + cacheCount : '';
+        }
     }
 
     showNothingPlaying() {
