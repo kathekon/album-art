@@ -129,10 +129,12 @@ Scripts in `scripts/`:
   - Script now backs up existing autostart before modifying (preserves other apps like weather station)
   - Added Chromium crash popup prevention (cleans exit state before launch)
   - Added `--disable-restore-session-state` and `--disable-features=InfiniteSessionRestore`
-
-## Planned Features
-
-- **REintegrate with PI screen timeout**: Reimplement the behaviour that previously existed on pi in which the screen would go to sleep at night and/or sometimes show screensavers.  Document old experience (is it still working now or partially working) then determine what we want to do going forward
+- **Playback-Aware Screen Sleep**: Pi screen now sleeps when idle and wakes when music plays:
+  - `album-art-dpms.sh` monitors `/api/state` every 60 seconds
+  - Screen sleeps after 5 minutes of no playback
+  - Screen wakes within 1 minute when music starts
+  - Runs as `album-art-dpms.service` systemd service
+  - Special day videos (Christmas, Thanksgiving, Halloween) still work via omxplayer overlay
 
 
 

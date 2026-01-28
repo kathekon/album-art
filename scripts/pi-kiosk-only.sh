@@ -113,32 +113,97 @@ else
 EOF
     fi
 
-    # Append screen blanking disable and browser (using cleanup launcher)
+    # Append DPMS settings and browser (using cleanup launcher)
+    # Note: We enable DPMS but let the monitor script control sleep based on playback
     cat >> "$AUTOSTART_FILE" << EOF
-@xset s off
-@xset -dpms
-@xset s noblank
+@xset s 300 300
+@xset +dpms
+@xset dpms 600 600 600
 @$CHROMIUM_CLEANUP_SCRIPT $FULL_URL $CHROMIUM_FLAGS
 EOF
 fi
 
-# Disable screen blanking and screensaver
-echo "Disabling screen blanking and screensaver..."
+# Enable DPMS with reasonable defaults (will be controlled by monitor script)
+echo "Enabling DPMS power management..."
 if command -v xset &> /dev/null; then
     export DISPLAY=:0
-    xset s off 2>/dev/null || true
-    xset -dpms 2>/dev/null || true
-    xset s noblank 2>/dev/null || true
+    xset s 300 300 2>/dev/null || true
+    xset +dpms 2>/dev/null || true
+    xset dpms 600 600 600 2>/dev/null || true
 fi
 
-# Disable xscreensaver if running
-if command -v xscreensaver-command &> /dev/null; then
-    xscreensaver-command -exit 2>/dev/null || true
-    # Prevent xscreensaver from starting on boot
-    if [ -f "$HOME/.config/lxsession/LXDE-pi/autostart" ]; then
-        sed -i '/xscreensaver/d' "$HOME/.config/lxsession/LXDE-pi/autostart" 2>/dev/null || true
+# Create playback-aware DPMS monitor script
+echo "Installing DPMS monitor script..."
+DPMS_SCRIPT="$HOME/album-art-dpms.sh"
+cat > "$DPMS_SCRIPT" << 'DPMS_EOF'
+#!/bin/bash
+# Monitor album art playback state and control DPMS accordingly
+# When music plays: keep screen awake
+# When idle for X minutes: sleep the screen
+
+SERVER_URL="__SERVER_URL__"
+IDLE_TIMEOUT_MINUTES=5
+CHECK_INTERVAL=60  # seconds
+
+idle_count=0
+
+while true; do
+    # Query playback state
+    state=$(curl -s --connect-timeout 5 "$SERVER_URL/api/state" 2>/dev/null)
+
+    if [ -z "$state" ]; then
+        # Server unreachable, increment idle
+        ((idle_count++))
+    else
+        is_playing=$(echo "$state" | grep -o '"is_playing":\s*true')
+
+        if [ -n "$is_playing" ]; then
+            # Music playing - reset idle counter, wake screen
+            idle_count=0
+            DISPLAY=:0 xset dpms force on 2>/dev/null
+        else
+            # Nothing playing
+            ((idle_count++))
+        fi
     fi
-fi
+
+    # Check if we have been idle long enough
+    idle_minutes=$((idle_count * CHECK_INTERVAL / 60))
+    if [ $idle_minutes -ge $IDLE_TIMEOUT_MINUTES ]; then
+        DISPLAY=:0 xset dpms force off 2>/dev/null
+    fi
+
+    sleep $CHECK_INTERVAL
+done
+DPMS_EOF
+
+# Replace placeholder with actual server URL
+sed -i "s|__SERVER_URL__|$SERVER_URL|g" "$DPMS_SCRIPT"
+chmod +x "$DPMS_SCRIPT"
+echo "Created DPMS monitor at $DPMS_SCRIPT"
+
+# Create and enable systemd service for DPMS monitor
+echo "Installing DPMS monitor systemd service..."
+sudo tee /etc/systemd/system/album-art-dpms.service > /dev/null << SYSTEMD_EOF
+[Unit]
+Description=Album Art DPMS Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+ExecStart=$DPMS_SCRIPT
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMD_EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable album-art-dpms.service
+sudo systemctl start album-art-dpms.service
+echo "DPMS monitor service enabled and started"
 
 # Enable desktop autologin (requires sudo)
 echo "Enabling desktop autologin..."
