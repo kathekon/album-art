@@ -107,14 +107,20 @@ Scripts in `scripts/`:
 - `spotify-auth.py` - One-time Spotify OAuth (when API reopens)
 
 ## Recent Enhancements (Jan 2026)
+- **Enhanced Display Modes**: 5-mode cycle: on → detailed → comparison → debug → off
+  - **Comparison mode**: Shows original Sonos thumbnail when using iTunes art
+  - **Debug mode**: Queue thumbnail stack with iTunes/Sonos badges and match reasons
+  - **Detailed mode**: Shows art source reason (e.g., "itunes (matched)" or "sonos (no album match)")
 - **iTunes Album Art**: Added iTunes Search API lookup for high-resolution artwork (up to 3000×3000). Configurable in `[artwork]` section of config.toml.
+- **iTunes Album Matching Fix**: Now verifies BOTH artist AND album name match (previously only checked artist, causing wrong album art like "The Wall" for "Dark Side of the Moon")
 - **Artwork Prefetching**: Browser prefetches upcoming queue artwork for seamless transitions
-- **Art Source Display**: Detailed mode now shows artwork source (sonos/itunes)
+- **Art Source Display**: Detailed mode now shows artwork source (sonos/itunes) with reason
 - **Configurable Default Mode**: Display mode configurable via:
   - CLI: `uv run album-art --default-mode=off`
   - URL param: `http://server:5174/?mode=off` (highest priority, for kiosk)
   - config.toml: `[display] default_mode = "on"`
   - Pi kiosk defaults to `mode=off` (no metadata)
+- **ES5 JavaScript Compatibility**: Frontend JS uses ES5 syntax for old Chromium on Raspberry Pi (no optional chaining `?.`)
 - **Bug Fixes**:
   - Fixed empty artist matching in iTunes (would incorrectly match any search)
   - Added 60-second rate limit backoff for iTunes API (prevents hammering on 429)
@@ -126,10 +132,9 @@ Scripts in `scripts/`:
 
 ## Planned Features
 
-See [docs/display-modes-plan.md](docs/display-modes-plan.md) for detailed implementation plan:
-- **Comparison mode**: Show original Sonos art thumbnail when using iTunes (verify correct match)
-- **Debug mode**: Queue thumbnail stack showing prefetched images with source badges
-- **Enhanced detailed mode**: Queue status and cached image count indicators
+- **REintegrate with PI screen timeout**: Reimplement the behaviour that previously existed on pi in which the screen would go to sleep at night and/or sometimes show screensavers.  Document old experience (is it still working now or partially working) then determine what we want to do going forward
+
+
 
 ## Development Workflow
 
@@ -166,9 +171,11 @@ open /tmp/pi-verify.png
 - **Changes work locally but not on Pi** → Check both server rebuild AND browser cache
 
 ## Known Issues / Future Work
+- **Sonos connection timeouts**: Docker bridge networking can intermittently lose connection to Sonos. Container will auto-recover on next poll cycle. If stuck showing "Nothing Playing", restart Docker: `docker compose restart`. Note: `network_mode: host` doesn't work on macOS (Docker runs in a VM).
 - Sonos auto-discovery times out on some networks - use direct IP instead
 - Spotify will provide higher-res art (640x640) when API reopens
 - Consider framebuffer fallback for Pi Zero/1 (512MB RAM too low for Chromium)
+- Consider adding MusicBrainz as fallback for albums iTunes doesn't match
 
 ## SSH to Legacy Raspberry Pi (Debian 8 Jessie)
 

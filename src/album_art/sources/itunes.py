@@ -105,29 +105,42 @@ async def get_itunes_artwork(artist: str, album: str) -> tuple[str | None, str]:
             _artwork_cache[cache_key] = {"url": None, "reason": "not found"}
             return None, "not found"
 
-        # Find best matching result - verify artist matches
+        # Find best matching result - verify BOTH artist AND album match
         artist_lower = artist.lower()
+        album_lower = clean_album.lower()
+
         for result in results:
             result_artist = result.get("artistName", "").lower()
-            # Skip results with empty artist - would incorrectly match anything
-            # (because "" in "any string" returns True in Python)
-            if not result_artist:
+            result_album = result.get("collectionName", "").lower()
+
+            # Skip results with empty artist or album
+            if not result_artist or not result_album:
                 continue
+
             # Check if artist name matches (allow partial match for "The Band" vs "Band")
-            if artist_lower in result_artist or result_artist in artist_lower:
+            artist_match = artist_lower in result_artist or result_artist in artist_lower
+
+            # Check if album name matches (allow partial match for editions/remasters)
+            album_match = album_lower in result_album or result_album in album_lower
+
+            if artist_match and album_match:
                 art_url = result.get("artworkUrl100", "")
                 if art_url:
                     # Replace 100x100 with configured size for higher resolution
                     # iTunes supports sizes up to 3000x3000
                     size = settings.artwork.itunes_size
                     high_res_url = art_url.replace("100x100bb", f"{size}x{size}bb")
-                    logger.info(f"iTunes artwork found for '{query}' (artist: {result_artist}): {size}x{size}")
+                    logger.info(
+                        f"iTunes match: '{result.get('collectionName')}' {size}x{size}"
+                    )
                     _artwork_cache[cache_key] = {"url": high_res_url, "reason": "matched"}
                     return high_res_url, "matched"
 
-        logger.debug(f"No iTunes artwork found for '{query}' (no artist match)")
-        _artwork_cache[cache_key] = {"url": None, "reason": "no match"}
-        return None, "no match"
+        # Log which albums were found but didn't match
+        found_albums = [r.get("collectionName") for r in results if r.get("collectionName")]
+        logger.debug(f"No iTunes match for '{query}' - albums found: {found_albums}")
+        _artwork_cache[cache_key] = {"url": None, "reason": "no album match"}
+        return None, "no album match"
 
     except httpx.TimeoutException:
         logger.warning(f"iTunes lookup timed out for '{query}'")
